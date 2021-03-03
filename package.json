@@ -1,0 +1,25 @@
+{
+  "name": "fetchrewardspoints",
+  "version": "1.0.0",
+  "description": "Coding challenge for Fetch Rewards backend internship application",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GracieIngermanson/FetchRewardsPoints.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/GracieIngermanson/FetchRewardsPoints/issues"
+  },
+  "homepage": "https://github.com/GracieIngermanson/FetchRewardsPoints#readme",
+  "dependencies": {
+    "express": "^4.17.1"
+  },
+  "devDependencies": {
+    "prettier": "^2.2.1"
+  }
+}
