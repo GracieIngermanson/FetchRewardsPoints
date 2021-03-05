@@ -3,8 +3,8 @@ let TOTAL_POINTS = 0;
 
 // Store balances for all payers
 // This will look like the following:
-// {'DANNON': {payer: 'DANNON', balance: 400},
-//  'UNILEVER': {payer: 'UNILEVER', balance: 50}}
+// {'DANNON': {payer: 'DANNON', points: 400},
+//  'UNILEVER': {payer: 'UNILEVER', points: 50}}
 const BALANCES = {};
 
 // Store list of all transactions in chronological order
@@ -23,6 +23,10 @@ const BALANCES = {};
 //        transaction2.unspentPoints < transaction2.points then
 //        transaction1.unspentPoints === 0
 const TRANSACTIONS = [];
+
+const getBalances = () => {
+  return Object.values(BALANCES);
+};
 
 // Called when addTransaction is called for a credit transaction
 // Updates the unspentPoints fields of debits with the same payer
@@ -55,7 +59,7 @@ const settleBalancesForNewCredit = (
     transaction.unspentPoints > 0 &&
     creditsWithSamePayer[index].timestamp >= transaction.timestamp
   ) {
-    const otherTransaction = creditWithSamePayer[index];
+    const otherTransaction = creditsWithSamePayer[index];
     if (otherTransaction.unspentPoints < otherTransaction.points) {
       const diff = Math.min(
         otherTransaction.points - otherTransaction.unspentPoints,
@@ -64,6 +68,7 @@ const settleBalancesForNewCredit = (
       otherTransaction.unspentPoints += diff;
       transaction.unspentPoints -= diff;
     }
+    index--;
   }
 };
 
@@ -87,25 +92,31 @@ const settleBalancesForNewDebit = (transaction, creditsWithSamePayer) => {
 
 // Add a transaction and do any necessary bookkeeping
 const addTransaction = (transaction) => {
-  // Update total number of points
-  TOTAL_POINTS += transaction.points;
   // update the balance of the payer for the transaction
   if (!BALANCES[transaction.payer]) {
-    BALANCES[payer] = { payer, balance: transaction.balance };
-  } else {
-    BALANCES[payer].balance += transaction.balance;
+    BALANCES[transaction.payer] = {
+      payer: transaction.payer,
+      points: 0,
+    };
   }
+  if (BALANCES[transaction.payer].points + transaction.points < 0)
+    throw new Error('Payer balance cannot be negative');
+
+  BALANCES[transaction.payer].points += transaction.points;
+
+  // Update total number of points
+  TOTAL_POINTS += transaction.points;
 
   // Get a list of other transactions with the same payer, for bookkeeping purposes
   const transactionsWithSamePayer = TRANSACTIONS.filter(
-    otherTransaction.payer === transaction.payer
+    (otherTransaction) => otherTransaction.payer === transaction.payer
   );
   // Split up into credits and debits
   const debitsWithSamePayer = transactionsWithSamePayer.filter(
-    !otherTransaction.isCredit
+    (otherTransaction) => !otherTransaction.isCredit
   );
   const creditsWithSamePayer = transactionsWithSamePayer.filter(
-    otherTransaction.isCredit
+    (otherTransaction) => otherTransaction.isCredit
   );
 
   if (transaction.isCredit) {
@@ -121,7 +132,11 @@ const addTransaction = (transaction) => {
   // search through TRANSACTIONS to find where to insert the new
   // transaction to maintain chronological order
   let index = 0;
-  while (index < TRANSACTIONS.length && TRANSACTIONS[index].timestamp) index++;
+  while (
+    index < TRANSACTIONS.length &&
+    TRANSACTIONS[index].timestamp < transaction.timestamp
+  )
+    index++;
 
   // insert the new transaction into TRANSACTIONS
   TRANSACTIONS.splice(index, 0, transaction);
@@ -137,25 +152,35 @@ const spend = (request) => {
   let points = request.points;
   let index = 0;
   let debits = {};
-  let additionalTransactions = [];
   const transactionsWithPoints = TRANSACTIONS.filter(
     (transaction) => transaction.unspentPoints > 0
   );
+  // Loop through transactions with available points in chronological order
   while (points > 0) {
     const transaction = transactionsWithPoints[index];
+    // Spend the available number of points from the transaction, unless this
+    // bring the number of points spent above the requested total
     const diff = Math.min(transaction.unspentPoints, points);
-    additionalTransactions.push({
+    transaction.unspentPoints -= diff;
+    points -= diff;
+
+    // Add a new debit transaction
+    TRANSACTIONS.push({
       payer: transaction.payer,
       points: -diff,
       timestamp: new Date(),
     });
-    transaction.unspentPoints -= diff;
-    points -= diff;
+
+    // Update the amount spent for the given payer as well as the payer's stored
+    // balance
     if (!debits[transaction.payer]) {
       debits[transaction.payer] = { payer: transaction.payer, points: 0 };
     }
     debits[transaction.payer].points -= diff;
+    BALANCES[transaction.payer].points -= diff;
     index++;
   }
   return Object.values(debits);
 };
+
+module.exports = { getBalances, addTransaction, spend };
